@@ -1,0 +1,191 @@
+#!/usr/bin/python3
+
+# https://stackoverflow.com/questions/20530105/how-to-specify-a-custom-stdlib-directory-for-llvm
+# https://stackoverflow.com/questions/60712261/how-to-prevent-osx-gcc-to-always-search-usr-local-include
+
+import sys
+import os
+from pathlib import Path
+
+false = False
+true = True
+
+def dbg(*argv, **kw):
+    kw.setdefault("file", sys.stderr)
+    return print(*argv, **kw)
+
+def env(k, default):
+    if default is false:
+        default = "false"
+    if default is true:
+        default = "true"
+
+    v = os.environ.get(k, default)
+    if v == "false":
+        return False
+    if v == "true":
+        return True
+    return v.strip()
+
+SDKROOT = Path(os.environ.get("SDKROOT", "/opt/python-wasm-sdk"))
+WASISDK = Path(os.environ.get("WASISDK", f"{SDKROOT}/emsdk"))
+WASI_SDK_PREFIX = Path(os.environ.get("WASI_SDK_PREFIX", f"{SDKROOT}/wasisdk/upstream"))
+PREFIX = Path(os.environ.get("PREFIX", f"{SDKROOT}/devices/wasisdk/usr"))
+
+# dbg(sys.argv)
+
+exe = sys.argv.pop(0)
+
+
+WASI_CFG = "--sysroot=${WASI_SDK_PREFIX}/share/wasi-sysroot -iwithsysroot /include/c++/v1"
+WASI_PATCH = f"-include {WASISDK}/hotfix/patch.h -isystem {WASISDK}/hotfix"
+WASI_DEF = "-D_GNU_SOURCE -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_GETPID"
+
+WASI_CFLAGS = os.getenv("WASI_CFLAGS", "")
+
+if env("CONFIG_SITE", false):
+    CONFIGURE = True
+else:
+    CONFIGURE = env("CONFIGURE", false)
+
+
+if not CONFIGURE:
+    if WASI_CFLAGS:
+        WASI_DEF = f"{WASI_DEF} {WASI_CFLAGS}"
+
+
+if exe.endswith("c++"):
+    mode = "++"
+    out = ["clang++"]
+    fixargs = True
+elif exe.endswith("cpp"):
+    mode = "-cpp"
+    out = ["clang-cpp"]
+    out.extend(WASI_DEF.split(" "))
+    out.extend(sys.argv)
+    fixargs = False
+else:
+    mode = ""
+    out = ["clang"]
+    fixargs = True
+
+
+if fixargs:
+
+    NINJA = env("NINJA", false)
+    CMAKE = False
+    RUSTC = False
+    LINKING = False
+    COMPILE = False
+    MODE = ""
+
+    # fix rust calling
+    for argc, arg in enumerate(sys.argv):
+
+        # clean up rustc way of passing out.
+
+        if arg in ("-l", "-L", "-I"):
+            sys.argv[argc] += sys.argv[argc + 1]
+            sys.argv[argc + 1] = ""
+            RUSTC = True
+
+    while "" in sys.argv:
+        sys.argv.remove("")
+
+    for arg in sys.argv:
+
+        if arg in ("-v", "--version"):
+            dbg(*sys.argv)
+            out = [exe]
+            out.extend(sys.argv)
+            break
+
+        if arg.startswith("CMakeFiles/") or arg.startswith("@CMakeFiles/"):
+            CMAKE = True
+
+        if not CONFIGURE:
+            if arg == "-pthread":
+                continue
+            if arg == "-latomic":
+                continue
+            if arg == "-fno-builtin":
+                WASI_PATCH = ""
+        else:
+            WASI_PATCH = ""
+
+        if arg == "-Wl,--start-group":
+            continue
+        if arg == "-Wl,--end-group":
+            continue
+
+
+        # rustc has an habit of "-l" "c" instead of "-lc"
+        if arg.startswith("-l"):
+            if len(arg) > 2:
+                LINKING = True
+                # prevent duplicate lib when linking
+                if arg in out:
+                    continue
+
+        # FAILSAFE
+        # that is for some very bad known setup.py behaviour regarding cross compiling and some old codebases.
+        # should not be needed ..
+        if arg.startswith("-I/"):
+            if arg.startswith("-I/usr/"):
+                continue
+
+        elif arg.startswith("-L/") or arg.startswith("-l"):
+            if not LINKING:
+                out.append(f"-L{os.environ['PREFIX']}/lib")
+                LINKING = True
+            if arg.startswith("-L/usr/"):
+                continue
+
+        elif arg in ("-o", "-c"):
+            MODE = arg
+            MODE_POS = argc
+            if arg == "-c":
+                COMPILE = True
+        elif arg == "-shared":
+            if not LINKING:
+                out.append(f"-L{os.environ['PREFIX']}/lib")
+                LINKING = True
+
+        # duplicates can happen on cmake/rustc but they are expected to be here for a reason so skip them
+        if not (CMAKE or NINJA or RUSTC):
+            # prevent duplicates objects/archives files on cmdline when linking
+            if LINKING or MODE == "-o":
+                if arg.endswith(".a") or arg.endswith(".o"):
+                    if arg in out:
+                        continue
+
+        out.append(arg)
+    else:
+
+        if 0:
+            dbg("=" * 80)
+            dbg(*sys.argv)
+            dbg("=" * 80)
+            dbg(*out)
+            dbg("_" * 80)
+
+        WASI_CFG = "--sysroot=${WASI_SDK_PREFIX}/share/wasi-sysroot -iwithsysroot /include/c++/v1"
+
+        if WASI_PATCH:
+            out.extend(WASI_PATCH.split(" "))
+        out.extend("-lwasi-emulated-getpid -lwasi-emulated-mman -lwasi-emulated-signal -lwasi-emulated-process-clocks".split(" "))
+        out.extend(WASI_DEF.split(" "))
+
+        out.extend("-fPIC -fno-rtti -fno-exceptions -z stack-size=131072".split(" "))
+        if not CONFIGURE:
+            out.extend(
+                "-Wno-unknown-pragmas -Wno-unused-but-set-variable -Wno-unused-command-line-argument -Wno-unsupported-floating-point-opt -Wno-nullability-completeness".split(
+                    " "
+                )
+            )
+            # pg
+            out.append("-Wno-missing-prototypes")
+            # hotpatch
+            out.append("-Wno-unused-function")
+
+os.execv(f"{WASI_SDK_PREFIX}/bin/clang{mode}", out)

@@ -1,0 +1,456 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+from pathlib import Path
+
+
+def dbg(*argv, **kw):
+    kw.setdefault("file", sys.stderr)
+    return print(*argv, **kw)
+
+
+SDKROOT = Path(os.environ.get("SDKROOT", "/opt/python-wasm-sdk"))
+EMSDK = Path(os.environ.get("EMSDK", "/opt/python-wasm-sdk/emsdk"))
+PREFIX = Path(os.environ.get("PREFIX", "/opt/python-wasm-sdk/devices/emsdk/usr"))
+
+sys.argv.pop(0)
+
+# point to emscripten cc
+if not sys.argv[0].endswith(".py"):
+    EXEC = f"{EMSDK}/upstream/emscripten/emcc.py"
+else:
+    EXEC = sys.argv.pop(0)
+
+args = sys.argv
+
+
+def env(k, default):
+    if default is false:
+        default = "false"
+    if default is true:
+        default = "true"
+
+    v = os.environ.get(k, default)
+    if v == "false":
+        return False
+    if v == "true":
+        return True
+    return v.strip()
+
+
+def arglist(*argv):
+    al = " ".join(argv)
+    al = al.replace("\n", " ")
+    while al.find("  ") >= 0:
+        al = al.replace("  ", " ")
+    return al.strip().split(" ")
+
+
+# -Wwarn-absolute-paths
+# --valid-abspath ${SDKROOT}
+# COMMON="-Wno-unsupported-floating-point-opt"
+
+COMMON = arglist(
+    """
+    -Wno-limited-postlink-optimizations
+    -Wno-unused-command-line-argument
+    -Wno-unreachable-code-fallthrough
+    -Wno-unused-function
+    """,
+    os.environ.get("PYDK_CFLAGS", ""),
+)
+
+false = False
+true = True
+
+PY_MODULE = IS_SHARED = false
+SHARED_TARGET = SHARED = ""
+
+MVP = env("MVP", true)
+
+if env("EMMAKEN_JUST_CONFIGURE", false):
+    CONFIGURE = True
+elif env("CONFIG_SITE", false):
+    CONFIGURE = True
+else:
+    CONFIGURE = env("CONFIGURE", false)
+
+
+if MVP:
+    # turn of wasm ex (https://github.com/emscripten-core/emscripten/pull/20536)
+    # -fno-wasm-exceptions -sEMSCRIPTEN_LONGJMP=0
+
+    # -mcpu=generic would activate those https://reviews.llvm.org/D125728
+    # https://github.com/emscripten-core/emscripten/pull/17689
+
+    # -fPIC not allowed with -mno-mutable-globals
+    # -mno-sign-ext not allowed with pthread
+
+    # WASMOPTS="-fno-wasm-exceptions -sSUPPORT_LONGJMP=emscripten"
+    # CPU="-mnontrapping-fptoint -mno-reference-types -mno-sign-ext -m32"
+
+    # bulk and main/side
+    # https://github.com/emscripten-core/emscripten/issues/22161
+
+    #        -mno-bulk-memory
+
+    CPU = arglist(
+        """
+        -m32
+        -D_FILE_OFFSET_BITS=64
+        -sSUPPORT_LONGJMP=emscripten
+        -mno-bulk-memory
+        -mnontrapping-fptoint
+        -mno-reference-types
+        -mno-sign-ext
+        -mno-extended-const
+        -mno-atomics
+        -mno-tail-call
+        -mno-fp16
+        -mno-multivalue
+        -mno-relaxed-simd
+        -mno-simd128
+        -mno-multimemory
+        -mno-exception-handling
+        """
+    )
+else:
+    CPU = arglist("-D_FILE_OFFSET_BITS=64 -mcpu=bleeding-edge -m64")
+
+
+# try to keep 32 but maybe with 64 iface (bigint)
+WASM_EXTRA = env("WASM_EXTRA", "") + " " + env("WASM_OPTS", "")
+
+# the only sane default for now
+COPTS = env("COPTS", "-O2 -g3")
+
+SIZEOPT = '-Os' in COPTS
+
+MAIN_MODULE = LINKING = STATIC = False
+
+EXE = False
+HTML = False
+
+MODE = ""
+AOUT = ""
+
+SKIP = False
+COMPILE = False
+
+USE_RAWFS = True
+CMAKE = False
+RUSTC = False
+NINJA = env("NINJA", false)
+
+out = []
+
+# fix rust calling
+for argc, arg in enumerate(sys.argv):
+
+    # clean up rustc way of passing args.
+
+    if arg in ("-l", "-L", "-I"):
+        sys.argv[argc] += sys.argv[argc + 1]
+        sys.argv[argc + 1] = ""
+        RUSTC = True
+
+while "" in sys.argv:
+    sys.argv.remove("")
+
+for argc, arg in enumerate(sys.argv):
+    if arg.startswith("CMakeFiles/") or arg.startswith("@CMakeFiles/"):
+        CMAKE = True
+
+    if arg.startswith("--preload-file") or arg.startswith("--embed-file"):
+        USE_RAWFS = False
+
+    if arg.find("MAIN_MODULE") > 0:
+        MAIN_MODULE = True
+
+    if arg == '-static':
+        STATIC = True
+
+    if arg == "-sENVIRONMENT=web":
+        EXE = False
+        HTML = True
+
+
+for argc, arg in enumerate(sys.argv):
+    if arg in ("-v", "--version"):
+        SKIP = True
+        break
+
+    # THEY ARE NOT SAFE TO CHANGE !
+    if arg in ("-O0", "-O1", "-O2", "-O3", "-Os", "-Oz"):
+        continue
+    if arg in ("-g0", "-g1", "-g2", "-g3", "-g4"):
+        continue
+
+
+    if not MAIN_MODULE:
+        # https://github.com/emscripten-core/emscripten/issues/22742
+        # https://github.com/hoodmane/emscripten/commit/34144634026c91a73bd3e1db85627132d3a37a6d
+        if arg == "-lc":
+            continue
+
+    # only html may not exit runtime.
+    if not HTML and arg.find("EXIT_RUNTIME") > 0:
+        continue
+
+    if arg.lower() in ("-fpic", "-latomic"):
+        continue
+
+    if arg in ("-Wl,--as-needed", "-Wl,--eh-frame-hdr", "-Wl,-znoexecstack", "-Wl,-znow", "-Wl,-zrelro", "-Wl,-zrelro,-znow"):
+        continue
+
+    if arg in ("-lgcc", "-lgcc_s", "-fallow-argument-mismatch"):
+        continue
+
+    if arg == "-pthread":
+        if MVP:
+            continue
+
+    # FAILSAFE
+    # that is for some very bad known setup.py behaviour regarding cross compiling and some old codebases.
+    # should not be needed ..
+    if arg.startswith("-I/"):
+        if arg.startswith("-I/usr/"):
+            continue
+
+    if arg.startswith("-L/"):
+        if arg.startswith("-L/usr/"):
+            continue
+
+    if arg.find("ASSERTIONS") > 0:
+        continue
+
+    # rustc has an habit of "-l" "c" instead of "-lc"
+    if arg.startswith("-l"):
+        if len(arg) > 2:
+            LINKING = True
+            # prevent duplicate lib when linking
+            if arg in out:
+                continue
+
+    elif arg in ("-o", "-c"):
+        MODE = arg
+        MODE_POS = argc
+        if arg == "-c":
+            COMPILE = True
+        # TODO maybe add node runner for a .cjs
+        elif arg == "-o":
+            out_pos = argc + 1
+            if IS_SHARED:
+                SHARED_TARGET = sys.argv[out_pos]
+            elif not AOUT:
+                AOUT = sys.argv[out_pos]
+
+    elif not STATIC:
+        if arg.endswith(".so") and arg.startswith("/usr/lib"):
+            arg = f"-l{arg.rsplit('/',1)[-1][3:-3]}"
+            if arg in ('-lportmidi','-lporttime'):
+                continue
+        elif arg.endswith(".so") or arg == "-shared" or arg.find("SIDE_MODULE") > 0:
+            IS_SHARED = True
+            if arg == "-shared":
+                pass
+            elif arg.endswith(".so"):
+                if arg.find("wasm32-emscripten.so") > 0 or arg.find("abi3.so") > 0:
+                    PY_MODULE = true
+                SHARED_TARGET = arg
+                out.append(arg)
+
+            SHARED = f"-shared -sASSERTIONS=0 -sSIDE_MODULE=1 -L{os.environ['PREFIX']}/lib"
+            continue
+
+    # duplicates can happen on cmake/rustc but they are expected to be here for a reason so skip them
+    if not (CMAKE or NINJA or RUSTC):
+        # prevent duplicates objects/archives files on cmdline when linking
+        if LINKING or MODE == "-o":
+            if arg.endswith(".a") or arg.endswith(".o"):
+                if arg in out:
+                    continue
+
+    # fix sysroot is not default to PIC
+    arg = arg.replace("/lib/wasm32-emscripten/lib","/lib/wasm32-emscripten/pic/lib")
+
+    out.append(arg)
+
+os.environ.pop("_EMCC_CCACHE", "")
+
+
+# if $MVP
+# then
+#    if $WASM_PURE
+#    then
+#        SOTMP=$(mktemp).so
+#        mv $SHARED_TARGET $SOTMP
+#        # --memory64-lowering --signext-lowering
+#        $SDKROOT/emsdk/upstream/bin/wasm-emscripten-finalize -mvp $SOTMP -o $SHARED_TARGET
+#        [ -f $SHARED_TARGET.map ] && rm $SHARED_TARGET.map
+#        rm $SOTMP
+#    fi
+# fi
+
+
+final = [EXEC]
+
+# a.out test misses fpic
+if CONFIGURE and len(out) == 1:
+    SKIP = out[0] == "conftest.c"
+    sys.argv.insert(0, "-fPIC")
+    sys.argv.insert(0, "-sASSERTIONS=0")
+    sys.argv.extend(CPU)
+
+
+if SKIP:
+    final.extend(sys.argv)
+else:
+    if AOUT:
+        if CMAKE or CONFIGURE:
+            EXE = False
+        # should not happen
+        elif AOUT.endswith(".o") and "-c" not in out:
+            final.append("-c")
+            EXE = False
+            MAIN_MODULE = False
+        elif AOUT.endswith(".html"):
+            MAIN_MODULE = True
+            EXE = False
+            HTML = True
+        # emscripten aware build
+        elif AOUT.endswith(".cjs") or AOUT.endswith(".js"):
+            MAIN_MODULE = True
+            EXE = True
+        # a.out case
+        elif "-c" not in out:
+            EXE = True
+        else:
+            EXE = False
+
+    # potentially executable running via js
+    # TODO: handle js runtimes other than shipped node.
+    # TODO: full node path
+    if (EXE and USE_RAWFS) and not HTML:
+        if AOUT.endswith(".cjs") or AOUT.endswith(".js"):
+
+            def make_exe(*argv, **kw):
+                global AOUT, CONFIGURE
+                if os.path.isfile(AOUT) and not CONFIGURE:
+                    try:
+                        with open(AOUT, "r") as file:
+                            bin = file.read()
+                        with open(AOUT, "w") as file:
+                            file.write("#!/usr/bin/env node\n")
+                            file.write(bin)
+                        os.chmod(AOUT, 0o766)
+                    except Exception as e:
+                        dbg("ERROR: 292", e)
+
+        # the build system is old and exe has no suffix from cmake or configure
+        else:
+
+            def make_exe(*argv, **kw):
+                global AOUT, CONFIGURE
+                if os.path.isfile(AOUT) and os.path.isfile(AOUT + ".wasm") and not CONFIGURE:
+                    os.rename(AOUT, AOUT + ".cjs")
+                    try:
+                        with open(AOUT, "w") as file:
+                            file.write("#!/usr/bin/env bash\n")
+                            file.write(os.environ.get('SYS_NODE', '/usr/bin/node')+' $0.cjs "$@"\n')
+                    except Exception as e:
+                        dbg("ERROR: 306", e)
+                        os.rename(AOUT + ".cjs", AOUT)
+                        return
+                    try:
+                        os.chmod(AOUT, 0o766)
+                    except Exception as e:
+                        dbg("ERROR: 312", e)
+
+        if SIZEOPT:
+            final.append("-sENVIRONMENT=node")
+
+        # error: explicitly setting EXIT_RUNTIME not compatible with STANDALONE_WASM.
+        #  EXIT_RUNTIME will always be True for programs (with a main function) and False for reactors (not main function).
+        # final.append("-sEXIT_RUNTIME")
+
+        if USE_RAWFS:
+            # final.append("-sASYNCIFY")
+            final.append("-sNODERAWFS")
+
+        __import__("atexit").register(make_exe)
+    elif HTML:
+        if SIZEOPT and ("-sENVIRONMENT=web" not in out):
+            final.append("-sENVIRONMENT=web")
+
+    # maybe not pass all WASM opts when -c + -o but always PIC and opt level
+    final.extend(arglist("-fPIC", SHARED, COPTS))
+
+    # prevent use of extended instr
+    final.extend(CPU)
+
+    if IS_SHARED or LINKING:
+        # , "-gsource-map --source-map-base /"))
+        final.append(f"-L{PREFIX}/lib")
+        final.extend(arglist(WASM_EXTRA, env("LDFLAGS", "")))
+    else:
+        final.append(f"-I{PREFIX}/include")
+        if MAIN_MODULE:
+            # TODO: module level
+            #  -gsource-map --source-map-base /
+            pass
+        final.extend(arglist(WASM_EXTRA, "-D__PYDK__=1"))
+
+    final.extend(out)
+    final.extend(COMMON)
+
+
+sys.path.insert(0, str(Path(EXEC).parent))
+sys.argv.clear()
+
+EMCC_TRACE = env("EMCC_TRACE", false)
+if EMCC_TRACE:
+    DEBUG_PATTERN = env("DEBUG_PATTERN", "main")
+
+    def dump():
+        dbg(
+            f"""
+ {COMMON=}
+
+ {CPU=}
+
+ {out=}
+
+ {LINKING=}
+
+ {PY_MODULE=} {SHARED_TARGET=}
+
+ {MODE=} {EXE=}
+
+ {final=}
+
+ {' '.join(sys.argv)}
+ """
+        )
+
+    while len(final):
+        arg = final.pop(0)
+        # add debug filters here.
+
+        sys.argv.append(arg)
+
+    # for debugging configure, cmake has its own very detailed log.
+    if os.path.isfile("conftest.c"):
+        __import__("shutil").copy("conftest.c", SDKROOT / "emcc.c")
+        if DEBUG_PATTERN not in (False, True):
+            with open("conftest.c", "r") as file:
+                if file.read().find(DEBUG_PATTERN) > 0:
+                    dump()
+    if DEBUG_PATTERN == "*":
+        dump()
+
+else:
+    sys.argv.extend(final)
+
+exec(open(EXEC, "r").read(), globals(), globals())

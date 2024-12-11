@@ -1,0 +1,15 @@
+#!/bin/bash
+LNK="$(realpath $0).wasi"
+if [ -f "$LNK" ]
+then
+    WASM=$LNK
+else
+    WASM=$1
+    shift
+    if [ -f "${WASM}.wasi" ]
+    then
+        WASM="${WASM}.wasi"
+    fi
+fi
+echo "WASI: $WASM $@" > /proc/self/fd/2
+wasmtime --env PYTHONDONTWRITEBYTECODE=1 --dir /::/ -- $WASM $@
