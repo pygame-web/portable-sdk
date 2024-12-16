@@ -18,7 +18,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     env:
-      CONTAINER_PATH: /tmp/sdk/fs
+      CONTAINER_PATH: /tmp/fs
 
     steps:
     - uses: actions/checkout@v4.2.2
@@ -28,19 +28,22 @@ jobs:
         WD=$(pwd)
         python3 -V
         echo $WD
+        echo
         clang --version | head -n 1
         echo
         gcc --version | head -n 1
-        echo "Github env:"
-        env|grep GITHUB
-        echo "Android support:"
-        env|grep ANDROID
         echo "Node :"
         node -v
+        echo
+        echo "Android support:"
+        env|grep ANDROID
+        echo
+        echo "Github env:"
+        env|grep GITHUB
 
     - name: Build sdk
       run: |
-        ./proot.sh
+        bash ./proot.sh
 
     - name: Upload sdk to Github Releases
       if: github.event_name == 'release'
@@ -50,3 +53,4 @@ jobs:
         file: /tmp/sdk/fs/tmp/sdk/*.tar.lz4
         file_glob: true
         tag: ${{ github.ref }}
+
