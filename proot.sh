@@ -331,4 +331,10 @@ __start() {
 	fi
 }
 
-alpineproot "apk add bash;/bin/bash --init-file /initrc"
+if ${CI:-false}
+then
+    alpineproot "apk add bash;/bin/bash /initrc"
+else
+    alpineproot "apk add bash;/bin/bash --init-file /initrc"
+fi
+
