@@ -96,7 +96,7 @@ alpineproot() {
 		[ ! -d $CONTAINER_PATH ] && mkdir -p $CONTAINER_PATH
 
 		# Use proot to prevent hard link extraction error
-		$PROOT --link2symlink tar -xzf $HOME/.cached_rootfs.tar.gz -C $CONTAINER_PATH
+		$PROOT tar -xzf $HOME/.cached_rootfs.tar.gz -C $CONTAINER_PATH
 
 		# If extraction fail, Delete cached rootfs and try again
 		[ "$?" != "0" ] && rm -f $HOME/.cached_rootfs.tar.gz && alpineproot $@ && exit 0
@@ -292,7 +292,7 @@ __start() {
 
 	COMMANDS=$PROOT
 #	COMMANDS+=" --link2symlink"
-	COMMANDS+=" --kill-on-exit"
+#	COMMANDS+=" --kill-on-exit"
 	COMMANDS+=" --kernel-release=\"${ALPINEPROOT_KERNEL_RELEASE:-5.18}\""
 	COMMANDS+=" -b /dev -b /proc -b /sys"
 	COMMANDS+=" -b /proc/self/fd:/dev/fd"
