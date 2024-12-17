@@ -39,24 +39,29 @@ function FIX () {
 
 if cd ${SDKROOT}/src
 then
-
-    wget -c $URL_NCURSES && tar xfz $NCURSES.tar.gz
+    if [ -d ${SDKROOT}/src/$NCURSES ]
+    then
+        echo using $NCURSES local sources
+    else
+        wget -c $URL_NCURSES && tar xfz $NCURSES.tar.gz
+    fi
 
     if cd ${SDKROOT}/src/$NCURSES
     then
-        [ -f $NCURSES.done ] || patch -p1 < $SDKROOT/support/__EMSCRIPTEN__.deps/${NCURSES}_emscripten.patch
-        touch $NCURSES.done
+        [ -f $NCURSES.patched ] || patch -p1 < $SDKROOT/support/__EMSCRIPTEN__.deps/${NCURSES}_emscripten.patch
+        touch $NCURSES.patched
     fi
+
+    mkdir -p ${SDKROOT}/build/ncurses/
 
     if true
     then
         cd $ROOT
-        mkdir -p ${SDKROOT}/build/ncurses/
 
-        if  [ -f ../devices/emsdk/usr/lib/libncurses.a ]
+        if  [ -f ${PREFIX}/lib/libncurses.a ]
         then
             echo "
-                * skiping [ncurses] or already built
+                * ncurses (non unicode) already built
             " 1>&2
         else
             echo " building non unicode ${NCURSES}"
@@ -68,7 +73,7 @@ then
 
             emmake make clean
             emmake make 2>&1 > /dev/null || FIX
-            emmake make install 2>&1 > /dev/null || exit 69
+            emmake make install 2>&1 > /dev/null || exit 76
 
         fi
     fi
@@ -76,9 +81,8 @@ then
     if  true
     then
         cd $ROOT
-        mkdir -p ${SDKROOT}/build/ncurses/
 
-        if [ -f devices/emsdk/usr/lib/libncursesw.a ]
+        if [ -f ${PREFIX}/lib/libncursesw.a ]
         then
             echo "
                 * ncursesw already built
@@ -99,7 +103,7 @@ then
 
             emmake make clean
             emmake make 2>&1 > /dev/null || FIX
-            emmake make install 2>&1 > /dev/null || exit 100
+            emmake make install 2>&1 > /dev/null || exit 106
         fi
     fi
 fi

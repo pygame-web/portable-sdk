@@ -3,8 +3,8 @@ export ROOT=$(pwd)
 export SDKROOT=${ROOT}/python-wasm-sdk
 export PATH=$(pwd):$PATH
 export WORKDIR=/data/git/python-wasm-sdk
-export CONTAINER_PATH=${CONTAINER_PATH:-${ROOT}/fs}
-export HOME=$CONTAINER_PATH
+export CONTAINER_PATH=${CONTAINER_PATH:-/tmp/fs}
+export HOME=/tmp
 
 if mkdir -p $CONTAINER_PATH
 then
@@ -37,8 +37,6 @@ fi
 
 [ $(uname -s) != "Linux" ] && [ ! "$ALPINEPROOT_FORCE" ] && exec echo "Expected Linux kernel, But got unsupported kernel ($(uname -s))."
 
-[ -x ${ALPINEPROOT_RC_PATH:-~/.alpineprootrc} ] && source ${ALPINEPROOT_RC_PATH:-~/.alpineprootrc}
-
 [ "$ALPINEPROOT_FORCE" ] && echo "Warning: I'm sure you know what are you doing."
 
 # Do not run if user run this script as root
@@ -52,15 +50,11 @@ fi
 export CONTAINER_DOWNLOAD_URL=""
 
 alpineproot() {
-	export PROOT=$(command -v proot) || $(command -v proot-rs)
 
 	if [ -x $CONTAINER_PATH/bin/busybox ]; then
 		__start $@
 		exit
 	fi
-
-	[ -n "$ALPINEPROOT_USE_PROOT_RS" ] && [ -x $(command -v proot-rs) ] && unset PROOT && export PROOT=$(command -v proot-rs)
-	[ -n "$ALPINEPROOT_PROOT_PATH" ] && unset PROOT && export PROOT=$ALPINEPROOT_PROOT_PATH
 
 	# Check whenever proot is installed or no
 	if [ -z "$PROOT" ] || [ ! -x $PROOT ]; then
@@ -96,7 +90,8 @@ alpineproot() {
 		[ ! -d $CONTAINER_PATH ] && mkdir -p $CONTAINER_PATH
 
 		# Use proot to prevent hard link extraction error
-		$PROOT tar -xzf $HOME/.cached_rootfs.tar.gz -C $CONTAINER_PATH
+		# $PROOT $HOME/.cached_rootfs.tar.gz -C $CONTAINER_PATH
+        tar -xzf $HOME/.cached_rootfs.tar.gz -C $CONTAINER_PATH
 
 		# If extraction fail, Delete cached rootfs and try again
 		[ "$?" != "0" ] && rm -f $HOME/.cached_rootfs.tar.gz && alpineproot $@ && exit 0
@@ -292,7 +287,7 @@ __start() {
 
 	COMMANDS=$PROOT
 #	COMMANDS+=" --link2symlink"
-#	COMMANDS+=" --kill-on-exit"
+	COMMANDS+=" --kill-on-exit"
 	COMMANDS+=" --kernel-release=\"${ALPINEPROOT_KERNEL_RELEASE:-5.18}\""
 	COMMANDS+=" -b /dev -b /proc -b /sys"
 	COMMANDS+=" -b /proc/self/fd:/dev/fd"
@@ -331,10 +326,16 @@ __start() {
 	fi
 }
 
+#export PROOT=$(pwd)/proot-rs
+#export ALPINEPROOT_USE_PROOT_RS=true
+export PROOT=$(pwd)/proot
+
 if ${CI:-false}
 then
+
     alpineproot "apk add bash;/bin/bash /initrc"
 else
+	export PROOT=$(pwd)/proot
     alpineproot "apk add bash;/bin/bash --init-file /initrc"
 fi
 
