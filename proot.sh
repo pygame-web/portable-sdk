@@ -332,6 +332,23 @@ export PROOT=$(pwd)/proot
 
 if ${CI:-false}
 then
+    echo "setting up python"
+    mkdir -p $CONTAINER_PATH/opt/python-wasm-sdk/src
+    wget https://www.python.org/ftp/python/3.13.1/Python-3.13.1.tar.xz -O/tmp/python.tar.xz
+    tar xfp /tmp/python.tar.xz -C $CONTAINER_PATH/opt/python-wasm-sdk/src
+
+    pushd $CONTAINER_PATH/opt/python-wasm-sdk
+        git clone --no-tags --depth 1 --single-branch --branch main https://github.com/emscripten-core/emsdk.git
+        pushd emsdk
+            #git checkout 91f8563a9d1a4a0ec03bbb2be23485367d85a091
+            ./emsdk install ${EMFLAVOUR:-latest}
+            ./emsdk activate ${EMFLAVOUR:-latest}
+        popd
+
+    popd
+
+    # prevent erasing
+    touch $CONTAINER_PATH/opt/python-wasm-sdk/dev
 
     alpineproot "apk add bash;/bin/bash /initrc"
 else
