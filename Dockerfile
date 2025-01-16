@@ -5,7 +5,7 @@ ENV PYTHON_SHA256 9cf9427bee9e2242e3877dd0f6b641c1853ca461f39d6503ce260a59c80bf0
 ENV SDKROOT /opt/python-wasm-sdk
 ENV emsdk true
 ENV BUILDS 3.13
-ENV EMFLAVOUR latest
+ENV EMFLAVOUR 3.1.74
 ENV PIP_ROOT_USER_ACTION ignore
 ENV PIP_NO_CACHE_DIR 1
 
@@ -20,7 +20,7 @@ ENV PIP_NO_CACHE_DIR 1
 # TODO : bootstrap python from clang directly and use it as SYS_PYTHON
 RUN apk add --no-cache --virtual .build-deps \
 		tar file lz4 \
-		git patch \
+		git patch bison flex \
         findutils binutils coreutils \
 		linux-headers \
 		clang make \
