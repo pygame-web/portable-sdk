@@ -124,10 +124,13 @@ else:
 # try to keep 32 but maybe with 64 iface (bigint)
 WASM_EXTRA = env("WASM_EXTRA", "") + " " + env("WASM_OPTS", "")
 
+
 # the only sane default for now
 COPTS = env("COPTS", "-O2 -g3")
+LOPTS = env("LOPTS", COPTS)
 
-SIZEOPT = "-Os" in COPTS
+
+SIZEOPT = "-Os" in LOPTS
 
 MAIN_MODULE = LINKING = STATIC = False
 
@@ -261,13 +264,16 @@ else:
 
         elif not STATIC:
             if arg.endswith(".so"):
+                if not IS_SHARED:
+                    LINKING = True
+
                 if arg.startswith("/usr/lib"):
                     arg = f"-l{arg.rsplit('/',1)[-1][3:-3]}"
                     if arg in ("-lportmidi", "-lporttime"):
                         continue
 
                 if arg.find("wasm32-emscripten.so") > 0 or arg.find("abi3.so") > 0:
-                    PY_MODULE = true
+                    PY_MODULE = True
                     SHARED_TARGET = arg
 
                 # FIX linking .so when it should have been .a for final exe without MAIN_MODULE set
@@ -285,7 +291,6 @@ else:
             # TODO check is -shared  implies -sSIDE_MODULE=1
             elif arg == "-shared":
                 IS_SHARED = True
-                SHARED = f"-shared -sASSERTIONS=0 -sSIDE_MODULE=1 -L{os.environ['PREFIX']}/lib"
                 continue
 
         # duplicates can happen on cmake/rustc but they are expected to be here for a reason so skip them
@@ -408,14 +413,18 @@ else:
         if SIZEOPT and ("-sENVIRONMENT=web" not in out):
             final.append("-sENVIRONMENT=web")
 
-    # maybe not pass all WASM opts when -c + -o but always PIC and opt level
-    final.extend(arglist("-fPIC", SHARED, COPTS))
+
+    if IS_SHARED or LINKING or PY_MODULE:
+        SHARED = f"-shared -sASSERTIONS=0 -sSIDE_MODULE=1"
+        final.extend(arglist("-fPIC", SHARED, LOPTS))
+    else:
+        # maybe not pass all WASM opts when -c + -o but always PIC and opt level
+        final.extend(arglist("-fPIC", SHARED, COPTS))
 
     # prevent use of extended instr
     final.extend(CPU)
 
     if IS_SHARED or LINKING:
-        # , "-gsource-map --source-map-base /"))
         final.append(f"-L{PREFIX}/lib")
         final.extend(arglist(WASM_EXTRA, env("LDFLAGS", "")))
     else:
