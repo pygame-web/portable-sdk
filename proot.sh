@@ -352,7 +352,7 @@ then
     popd
 
     # prevent erasing
-    touch $CONTAINER_PATH/opt/python-wasm-sdk/dev
+    touch ${CONTAINER_PATH}/${SDKROOT}/dev
 
     alpineproot "apk add bash;/bin/bash /initrc"
 else
