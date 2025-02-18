@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 export ROOT=$(pwd)
-export SDKROOT=${ROOT}/python-wasm-sdk
 export PATH=$(pwd):$PATH
-export WORKDIR=/data/git/python-wasm-sdk
+export WORKDIR=/workspace
 export CONTAINER_PATH=${CONTAINER_PATH:-/tmp/fs}
 export HOME=/tmp
+
+. config
+
+export CI=${CI:-false}
+
 
 if mkdir -p $CONTAINER_PATH
 then
@@ -28,8 +32,6 @@ END
     tar xfp ${ROOT}/lib64.tar.bz2
     popd
 fi
-
-
 
 
 # alpine-proot - A well quick standalone Alpine PRoot installer & launcher
@@ -294,7 +296,7 @@ __start() {
 	COMMANDS+=" -b /proc/self/fd/0:/dev/stdin"
 	COMMANDS+=" -b /proc/self/fd/1:/dev/stdout"
 	COMMANDS+=" -b /proc/self/fd/2:/dev/stderr"
-    COMMANDS+=" -b ${SDKROOT}:${WORKDIR}"
+    COMMANDS+=" -b ${ROOT}:${WORKDIR}"
 	for f in stat version loadavg vmstat uptime; do
 		[ -f "$CONTAINER_PATH/proc/.$f" ] && COMMANDS+=" -b $CONTAINER_PATH/proc/.$f:/proc/$f"
 	done
@@ -326,24 +328,26 @@ __start() {
 	fi
 }
 
-#export PROOT=$(pwd)/proot-rs
-#export ALPINEPROOT_USE_PROOT_RS=true
 export PROOT=$(pwd)/proot
 
-if ${CI:-false}
+
+. ${ROOT}/get/python-wasm-sdk.sh
+
+
+if ${CI}
 then
     echo "setting up python"
-    mkdir -p $CONTAINER_PATH/opt/python-wasm-sdk/src
-    wget https://www.python.org/ftp/python/3.13.1/Python-3.13.1.tar.xz -O/tmp/python.tar.xz
-    tar xfp /tmp/python.tar.xz -C $CONTAINER_PATH/opt/python-wasm-sdk/src
 
-    pushd $CONTAINER_PATH/opt/python-wasm-sdk
-        git clone --no-tags --depth 1 --single-branch --branch main https://github.com/emscripten-core/emsdk.git
-        pushd emsdk
-            #git checkout 91f8563a9d1a4a0ec03bbb2be23485367d85a091
-            ./emsdk install ${EMFLAVOUR:-latest}
-            ./emsdk activate ${EMFLAVOUR:-latest}
+
+    pushd ${CONTAINER_PATH}/${SDKROOT}
+        mkdir -p src
+
+        pushd src
+            . ${ROOT}/get/python.sh
         popd
+
+        . ${ROOT}/get/jdk.sh
+        . ${ROOT}/get/emsdk.sh
 
     popd
 
@@ -352,7 +356,6 @@ then
 
     alpineproot "apk add bash;/bin/bash /initrc"
 else
-	export PROOT=$(pwd)/proot
     alpineproot "apk add bash;/bin/bash --init-file /initrc"
 fi
 

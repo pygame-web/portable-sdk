@@ -1,13 +1,12 @@
 
-ENV GPG_KEY 7169605F62C751356D054A26A821E680E5FA6305
-ENV PYTHON_VERSION 3.13.1
-ENV PYTHON_SHA256 9cf9427bee9e2242e3877dd0f6b641c1853ca461f39d6503ce260a59c80bf0d9
-ENV SDKROOT /opt/python-wasm-sdk
+ENV PYTHON_VERSION 3.13.2
+ENV SDKROOT /tmp/sdk
 ENV emsdk true
 ENV BUILDS 3.13
 ENV EMFLAVOUR 3.1.74
 ENV PIP_ROOT_USER_ACTION ignore
 ENV PIP_NO_CACHE_DIR 1
+# ENV CI true
 
 #
 #
@@ -36,6 +35,6 @@ RUN apk add --no-cache --virtual .build-deps \
     python3 openssl-dev \
     ;
 
-WORKDIR /data/git/python-wasm-sdk
+WORKDIR /workspace
 
-RUN ./python-wasm-sdk.sh
+RUN cd python-wasm-sdk && ./python-wasm-sdk.sh && cd ..
