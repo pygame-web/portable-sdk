@@ -338,6 +338,7 @@ if ${CI}
 then
     echo "setting up python"
 
+    mkdir -p ${CONTAINER_PATH}${SDKROOT}
 
     pushd ${CONTAINER_PATH}/${SDKROOT}
         mkdir -p src
