@@ -31,7 +31,7 @@ RUN apk add --no-cache --virtual .build-deps \
 		xz xz-dev \
 		bzip2-dev \
 		zlib-dev \
-        autoconf automake libtool curl perl nodejs \
+        autoconf automake libtool curl perl nodejs pkgconfig \
     python3 openssl-dev \
     ;
 

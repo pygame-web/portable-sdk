@@ -349,6 +349,9 @@ then
 
         . ${ROOT}/get/jdk.sh
         . ${ROOT}/get/emsdk.sh
+        . ${ROOT}/get/bun.sh
+        . ${ROOT}/get/pnpm.sh
+
 
     popd
 
