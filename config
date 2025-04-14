@@ -3,6 +3,6 @@ export SDKROOT=/tmp/sdk
 
 export AOSP_NDK=25.2.9519653
 
-export EMFLAVOUR=3.1.74
+export EMFLAVOUR=3.1.61
 
 export NIM_VERSION=nim-2.2.2

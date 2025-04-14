@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       CONTAINER_PATH: /tmp/fs
-      EMFLAVOUR: 3.1.74
+      EMFLAVOUR: 3.1.61
 
     steps:
     - uses: actions/checkout@v4.2.2
