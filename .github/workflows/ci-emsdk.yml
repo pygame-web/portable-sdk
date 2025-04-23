@@ -20,10 +20,8 @@ jobs:
     env:
       CONTAINER_PATH: /tmp/fs
       EMFLAVOUR: 3.1.61
-
     steps:
     - uses: actions/checkout@v4.2.2
-
     - name: Display CI properties
       run: |
         WD=$(pwd)
@@ -37,15 +35,12 @@ jobs:
         node -v
         echo
         echo "Android support:"
-#        env|grep ANDROID
         echo
         echo "Github env:"
         env|grep GITHUB
-
     - name: Build sdk
       run: |
         bash ./proot.sh
-
     - name: Upload sdk to Github Releases
       if: github.event_name == 'release'
       uses: svenstaro/upload-release-action@2.9.0
