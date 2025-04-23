@@ -37,7 +37,7 @@ jobs:
         node -v
         echo
         echo "Android support:"
-        env|grep ANDROID
+#        env|grep ANDROID
         echo
         echo "Github env:"
         env|grep GITHUB
