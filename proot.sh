@@ -120,7 +120,7 @@ __get_container_url() {
 }
 
 __start() {
-	proot -0 rm -rf $CONTAINER_PATH/proc
+	proot.$(arch) -0 rm -rf $CONTAINER_PATH/proc
 	mkdir $CONTAINER_PATH/proc
 
 	# Proceed make fake /proc/version
@@ -328,7 +328,7 @@ __start() {
 	fi
 }
 
-export PROOT=$(pwd)/proot
+export PROOT=$(pwd)/proot.$(arch)
 
 
 . ${ROOT}/get/python-wasm-sdk.sh
