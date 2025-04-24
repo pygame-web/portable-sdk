@@ -1,4 +1,4 @@
-name: CI-arm
+name: CI-x86_64
 
 on:
   workflow_dispatch:
@@ -8,11 +8,6 @@ on:
     # edited or published)
     types: [created]
 
-  push:
-    branches: main
-
-  pull_request:
-    branches: main
 
 jobs:
   build:

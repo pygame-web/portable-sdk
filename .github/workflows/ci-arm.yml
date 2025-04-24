@@ -8,11 +8,6 @@ on:
     # edited or published)
     types: [created]
 
-  push:
-    branches: main
-
-  pull_request:
-    branches: main
 
 jobs:
   build:
