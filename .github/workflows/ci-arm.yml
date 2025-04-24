@@ -42,7 +42,7 @@ jobs:
       run: |
         git clone https://github.com/pygame-web/python-wasm-sdk
         mkdir -p /tmp/fs/tmp/sdk/dist
-        docker run -it -e EMFLAVOUR=3.1.61 -e BUILDS=3.12 -v ./python-wasm-sdk:/workspace -v /tmp/fs/tmp/sdk/dist:/tmp/sdk/dist  --workdir=/workspace --name wasmsdk debian:stable ./python-wasm-sdk.sh
+        docker run -e EMFLAVOUR=3.1.61 -e BUILDS=3.12 -v ./python-wasm-sdk:/workspace -v /tmp/fs/tmp/sdk/dist:/tmp/sdk/dist  --workdir=/workspace --name wasmsdk debian:stable ./python-wasm-sdk.sh
     - name: Upload sdk to Github Releases
       if: github.event_name == 'release'
       uses: svenstaro/upload-release-action@2.9.0
