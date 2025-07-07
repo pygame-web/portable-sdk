@@ -3,7 +3,7 @@ ENV PYTHON_VERSION 3.13.3
 ENV SDKROOT /tmp/sdk
 ENV emsdk true
 ENV BUILDS 3.13
-ENV EMFLAVOUR 3.1.61
+ENV EMFLAVOUR 3.1.74
 ENV PIP_ROOT_USER_ACTION ignore
 ENV PIP_NO_CACHE_DIR 1
 # ENV CI true
@@ -18,7 +18,7 @@ ENV PIP_NO_CACHE_DIR 1
 
 # TODO : bootstrap python from clang directly and use it as SYS_PYTHON
 RUN apk add --no-cache --virtual .build-deps \
-		tar file lz4 \
+		tar file lz4 unzip \
 		git patch bison flex \
         findutils binutils coreutils \
 		linux-headers \

@@ -5,6 +5,7 @@ export WORKDIR=/workspace
 export CONTAINER_PATH=${CONTAINER_PATH:-/tmp/fs}
 export HOME=/tmp
 
+
 . config
 
 export CI=${CI:-false}
@@ -328,37 +329,56 @@ __start() {
 	fi
 }
 
+pause () {
+    if ${CI}
+    then
+        echo "$0:$1"
+    else
+        echo "<paused at $1> press enter ..."
+        read
+    fi
+}
+
+
+
 export PROOT=$(pwd)/proot.$(arch)
 
 
 . ${ROOT}/get/python-wasm-sdk.sh
 
 
-if ${CI}
+if true # ${CI}
 then
-    echo "setting up python"
 
     mkdir -p ${CONTAINER_PATH}${SDKROOT}
 
-    pushd ${CONTAINER_PATH}/${SDKROOT}
+    pushd ${CONTAINER_PATH}${SDKROOT}
         mkdir -p src
 
         pushd src
             . ${ROOT}/get/python.sh
         popd
+        pause $LINENO
 
         . ${ROOT}/get/jdk.sh
-        . ${ROOT}/get/emsdk.sh
-        . ${ROOT}/get/bun.sh
-        . ${ROOT}/get/pnpm.sh
+        pause $LINENO
 
+        . ${ROOT}/get/emsdk.sh
+        pause $LINENO
+
+        . ${ROOT}/get/bun.sh
+        pause $LINENO
+
+        . ${ROOT}/get/pnpm.sh
+        pause $LINENO
 
     popd
 
     # prevent erasing
-    touch ${CONTAINER_PATH}/${SDKROOT}/dev
+    touch ${CONTAINER_PATH}${SDKROOT}/dev
 
-    alpineproot "apk add bash;/bin/bash /initrc"
+    # alpineproot "apk add bash;/bin/bash /initrc"
+    alpineproot "apk add bash;/bin/bash --init-file /initrc"
 else
     alpineproot "apk add bash;/bin/bash --init-file /initrc"
 fi

@@ -9,4 +9,4 @@ wget -q https://www.python.org/ftp/python/3.13.3/Python-3.13.3.tar.xz -O/tmp/pyt
 tar xfp /tmp/python.tar.xz
 rm /tmp/python.tar.xz
 
-
+ln -s Python-3.13.3 cpython${PYBUILD}

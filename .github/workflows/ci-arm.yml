@@ -29,21 +29,31 @@ jobs:
         echo "Node :"
         node -v
         echo
-        echo "Android support:"
-        echo
         echo "Github env:"
         env|grep GITHUB
-    - name: Build sdk
+        sudo apt-get install libtalloc2 lz4
+
+    - name: prepare build env
       run: |
         git clone https://github.com/pygame-web/python-wasm-sdk
-        mkdir -p /tmp/fs/tmp/sdk/dist
-        docker run -e EMFLAVOUR=3.1.61 -e BUILDS=3.12 -v ./python-wasm-sdk:/workspace -v /tmp/fs/tmp/sdk/dist:/tmp/sdk/dist  --workdir=/workspace --name wasmsdk debian:stable ./python-wasm-sdk.sh
+        mkdir -p /tmp/fs/tmp/sdk/dist /tmp/dist
+
+    - name: Build sdk (debian docker) for python 3.12
+      run: |
+        docker run -e EMFLAVOUR=3.1.61 -e BUILDS=3.12 -v ./python-wasm-sdk:/workspace -v /tmp/fs/tmp/sdk/dist:/tmp/sdk/dist  --workdir=/workspace --name wasmsdk-3-12 debian:stable ./python-wasm-sdk.sh
+        mv /tmp/sdk/dist/*.tar.lz4 /tmp/dist/
+
+    - name: Build sdk (debian docker) for python 3.13
+      run: |
+        docker run -e EMFLAVOUR=3.1.61 -e BUILDS=3.13 -v ./python-wasm-sdk:/workspace -v /tmp/fs/tmp/sdk/dist:/tmp/sdk/dist  --workdir=/workspace --name wasmsdk-3-13 debian:stable ./python-wasm-sdk.sh
+       	mv /tmp/sdk/dist/*.tar.lz4 /tmp/dist/
+
     - name: Upload sdk to Github Releases
       if: github.event_name == 'release'
       uses: svenstaro/upload-release-action@2.9.0
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file:  /tmp/fs/tmp/sdk/dist/*.tar.lz4
+        file:  /tmp/dist/*.tar.lz4
         file_glob: true
         tag: ${{ github.ref }}
 
