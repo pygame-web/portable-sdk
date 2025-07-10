@@ -18,7 +18,7 @@ docker run $@ \
  -e wasisdk=true \
  -v ./python-wasm-sdk:/workspace \
  -v ./prebuilt:/workspace/prebuilt \
- -v ${CONTAINER_PATH}${SDKROOT}/dist:${SDKROOT}/dist \
+ -v /tmp/dist:${SDKROOT}/dist \
  --workdir=/workspace --name wasmsdk debian:12 \
  bash --noprofile --rcfile docker_rc.sh -ci "( ./python-wasm-sdk.sh $PROMPT"
 
