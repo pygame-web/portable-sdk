@@ -16,7 +16,6 @@ jobs:
       CONTAINER_PATH: /tmp/fs
       EMFLAVOUR: 3.1.61
       SDKROOT: /tmp/sdk
-      wasisdk: false
     steps:
     - uses: actions/checkout@v4.2.2
     - name: Display CI properties
